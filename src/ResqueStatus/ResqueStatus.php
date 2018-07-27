@@ -130,6 +130,10 @@ class ResqueStatus
 
         if ($schedulerPid !== false && is_array($pids)) {
             if (in_array($schedulerPid, $pids)) {
+                if (($stat = $this->procIsActive($schedulerPid)) !== null) {
+                    return $stat;
+                } 
+
                 return true;
             }
             // Pid is outdated, remove it
@@ -137,6 +141,40 @@ class ResqueStatus
             return false;
         }
         return false;
+    }
+
+    /**
+     * Check if a pid is actually running
+     * 
+     * @param $pid - the pid to check
+     * @return null|boolean - true/false on success/failure, null when no
+     *   check can be made because posix/win32_ps functions can't be found
+     */
+    public function procIsActive($pid)
+    {
+        $os = strtolower(php_uname('s'));
+        $windows = [ 'win', 'windows' ];
+        $linux = [ 'linux', 'freebsd', 'darwin' ];
+
+        // on linux check first with the posix module, second simply
+        // check the proc directory
+        if (in_array($linux, $os)) {
+            if (function_exists('posix_getpgid')) {
+                return posix_getpgid($pid);
+            } else {
+                return file_exists("/proc/$pid");
+            }
+        }
+
+        // on windows check with the win32_ps module
+        if (in_array($windows, $os)) {
+            if (function_exists('win32_ps_stat_proc')) {
+                return win32_ps_stat_proc($pid);
+            }
+        }
+
+        return null;
+
     }
 
     /**
